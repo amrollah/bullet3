@@ -68,6 +68,7 @@ struct GarmentFit : public CommonRigidBodyBase {
 
         m_dynamicsWorld = new btSoftRigidDynamicsWorld(m_dispatcher, m_broadphase, m_solver, m_collisionConfiguration);
         m_dynamicsWorld->setGravity(btVector3(0, -10, 0));
+        m_dynamicsWorld->stepSimulation(btScalar(1.)/btScalar(2000.), btScalar(1.)/btScalar(2000.));
 
         softBodyWorldInfo.m_broadphase = m_broadphase;
         softBodyWorldInfo.m_dispatcher = m_dispatcher;
@@ -82,7 +83,7 @@ struct GarmentFit : public CommonRigidBodyBase {
     }
 
     void resetCamera() {
-        float dist = 20;
+        float dist = 4;
         float pitch = 150;
         float yaw = 35;
         float targetPos[3] = {0, 0, 0};
@@ -90,6 +91,7 @@ struct GarmentFit : public CommonRigidBodyBase {
     }
     void createClothPath(const btScalar s, const int numX, const int numY, const int fixed= 1 + 2);
     void createSoftBody(tinyobj::shape_t& shape);
+    void LoadRigidBody(const char* relativeFileName, const char* meshFileName);
 
     btSoftBodyWorldInfo softBodyWorldInfo;
 };
@@ -101,9 +103,11 @@ void GarmentFit::initPhysics() {
     //m_dynamicsWorld->setGravity(btVector3(0,0,0));
     m_guiHelper->createPhysicsDebugDrawer(m_dynamicsWorld);
 //
-//    if (m_dynamicsWorld->getDebugDrawer())
-//        m_dynamicsWorld->getDebugDrawer()->setDebugMode(
-//                btIDebugDraw::DBG_DrawWireframe + btIDebugDraw::DBG_DrawContactPoints);
+    if (m_dynamicsWorld->getDebugDrawer())
+        m_dynamicsWorld->getDebugDrawer()->setDebugMode(
+                btIDebugDraw::DBG_DrawWireframe + btIDebugDraw::DBG_DrawContactPoints
+                +btIDebugDraw::DBG_DrawAabb
+                +btIDebugDraw::DBG_DrawConstraints);
 
     ///create a few basic rigid bodies
     btBoxShape *groundShape = createBoxShape(btVector3(btScalar(50.), btScalar(50.), btScalar(50.)));
@@ -116,57 +120,38 @@ void GarmentFit::initPhysics() {
 
     btTransform groundTransform;
     groundTransform.setIdentity();
-    groundTransform.setOrigin(btVector3(0, -60, 0));
+    groundTransform.setOrigin(btVector3(0, -50, 0)); // -75
 
     {
         btScalar mass(0.);
         createRigidBody(mass, groundTransform, groundShape, btVector4(0, 0, 1, 1));
     }
+    btCollisionShape* childShape1 = new btSphereShape(btScalar(1.5));
+//    m_guiHelper->createCollisionShapeGraphicsObject(childShape1);
+    m_collisionShapes.push_back(childShape1);
+    btCollisionShape* childShape2 = new btSphereShape(btScalar(0.5));
+//    m_guiHelper->createCollisionShapeGraphicsObject(childShape2);
+    m_collisionShapes.push_back(childShape2);
 
+    btTransform groundTransform1;
+    groundTransform1.setIdentity();
+    float pos[4] = {0, 1.8, 0, 0};
+    btVector3 position(pos[0], pos[1], pos[2]);
+    groundTransform1.setOrigin(position);
+    {
+        btScalar mass(1.);
+        createRigidBody(mass, groundTransform1, childShape1, btVector4(0, 0, 1, 1));
+    }
 
-//	{
-//		//create a few dynamic rigidbodies
-//		// Re-using the same collision is better for memory usage and performance
-//
-//		btBoxShape* colShape = createBoxShape(btVector3(.1,.1,.1));
-//
-//
-//		//btCollisionShape* colShape = new btSphereShape(btScalar(1.));
-//		m_collisionShapes.push_back(colShape);
-//
-//		/// Create Dynamic Objects
-//		btTransform startTransform;
-//		startTransform.setIdentity();
-//
-//		btScalar	mass(1.f);
-//
-//		//rigidbody is dynamic if and only if mass is non zero, otherwise static
-//		bool isDynamic = (mass != 0.f);
-//
-//		btVector3 localInertia(0,0,0);
-//		if (isDynamic)
-//			colShape->calculateLocalInertia(mass,localInertia);
-//
-//
-//		for (int k=0;k<ARRAY_SIZE_Y;k++)
-//		{
-//			for (int i=0;i<ARRAY_SIZE_X;i++)
-//			{
-//				for(int j = 0;j<ARRAY_SIZE_Z;j++)
-//				{
-//					startTransform.setOrigin(btVector3(
-//										btScalar(0.2*i),
-//										btScalar(2+.2*k),
-//										btScalar(0.2*j)));
-//
-//
-//					createRigidBody(mass,startTransform,colShape);
-//
-//
-//				}
-//			}
-//		}
-//	}
+    btTransform groundTransform2;
+    groundTransform2.setIdentity();
+    float pos2[4] = {0, 1.8, 0, 0};
+    btVector3 position2(pos[0], pos[1], pos[2]);
+    groundTransform2.setOrigin(position2);
+    {
+        btScalar mass(1.);
+        createRigidBody(mass, groundTransform2, childShape2, btVector4(0, 1, 0, 1));
+    }
 
 
     //load our obj mesh
@@ -177,63 +162,7 @@ void GarmentFit::initPhysics() {
         b3FileUtils::extractPath(relativeFileName, pathPrefix, 1024);
     }
 
-    std::vector<tinyobj::shape_t> shapes;
-    std::string err = tinyobj::LoadObj(shapes, relativeFileName, pathPrefix);
-    tinyobj::shape_t& objshape = shapes[0];
-
-    GLInstanceGraphicsShape *glmesh = LoadMeshFromObj(relativeFileName, "");
-    printf("[INFO] Obj loaded: Extracted %d verticed from obj file [%s]\n", glmesh->m_numvertices, bodyFileName);
-
-    const GLInstanceVertex &v = glmesh->m_vertices->at(0);
-    btConvexHullShape *shape = new btConvexHullShape((const btScalar *) (&(v.xyzw[0])), glmesh->m_numvertices,
-                                                     sizeof(GLInstanceVertex));
-
-    float scaling[4] = {1, 1, 1, 1};
-
-    btVector3 localScaling(scaling[0], scaling[1], scaling[2]);
-    shape->setLocalScaling(localScaling);
-
-    if (m_options & OptimizeConvexObj) {
-        shape->optimizeConvexHull();
-    }
-
-    if (m_options & ComputePolyhedralFeatures) {
-        shape->initializePolyhedralFeatures();
-    }
-
-    shape->setMargin(0.0001);
-    m_collisionShapes.push_back(shape);
-
-    btTransform startTransform;
-    startTransform.setIdentity();
-
-    btScalar mass(0.f);
-    bool isDynamic = (mass != 0.f);
-    btVector3 localInertia(0, 0, 0);
-    if (isDynamic)
-        shape->calculateLocalInertia(mass, localInertia);
-
-    float color[4] = {1, 1, 1, 1};
-    float orn[4] = {0, 0, 0, 1};
-    float pos[4] = {0, 0.8, 0, 0};
-    btVector3 position(pos[0], pos[1], pos[2]);
-    startTransform.setOrigin(position);
-    btRigidBody *body = createRigidBody(mass, startTransform, shape);
-
-    bool useConvexHullForRendering = ((m_options & ObjUseConvexHullForRendering) != 0);
-
-
-    if (!useConvexHullForRendering) {
-        int shapeId = m_guiHelper->registerGraphicsShape(&glmesh->m_vertices->at(0).xyzw[0],
-                                                         glmesh->m_numvertices,
-                                                         &glmesh->m_indices->at(0),
-                                                         glmesh->m_numIndices,
-                                                         B3_GL_TRIANGLES, -1);
-        shape->setUserIndex(shapeId);
-        int renderInstance = m_guiHelper->registerGraphicsInstance(shapeId, pos, orn, color, scaling);
-        body->setUserIndex(renderInstance);
-    }
-
+    LoadRigidBody(relativeFileName, bodyFileName);
 
     // create garments
     {
@@ -250,10 +179,11 @@ void GarmentFit::initPhysics() {
         }
 
         std::vector<tinyobj::shape_t> shapes_j;
-        err = tinyobj::LoadObj(shapes_j, relativeFileName2, pathPrefix2);
+        std:: string err = tinyobj::LoadObj(shapes_j, relativeFileName2, pathPrefix2);
         tinyobj::shape_t& jacket = shapes_j[0];
 
-        createSoftBody(jacket);
+//        createSoftBody(jacket);
+//        LoadRigidBody(relativeFileName2, jacketFileName);
 
         const char *trousersFileName = "fision//TrousersMesh.obj";
         char relativeFileName3[1024];
@@ -274,6 +204,67 @@ void GarmentFit::initPhysics() {
 
 }
 
+
+void GarmentFit::LoadRigidBody(const char* relativeFileName, const char* meshFileName){
+    GLInstanceGraphicsShape *glmesh = LoadMeshFromObj(relativeFileName, "");
+    printf("[INFO] Obj loaded: Extracted %d verticed from obj file [%s]\n", glmesh->m_numvertices, meshFileName);
+
+    const GLInstanceVertex &v = glmesh->m_vertices->at(0);
+    btConvexHullShape *shape = new btConvexHullShape((const btScalar *) (&(v.xyzw[0])), glmesh->m_numvertices,
+                                                     sizeof(GLInstanceVertex));
+
+    float scaling[4] = {1, 1, 1, 1};
+    btVector3 localScaling(scaling[0], scaling[1], scaling[2]);
+    shape->setLocalScaling(localScaling);
+
+    if (m_options & OptimizeConvexObj) {
+        shape->optimizeConvexHull();
+    }
+
+//    if (m_options & ComputePolyhedralFeatures) {
+//        shape->initializePolyhedralFeatures();
+//    }
+
+    shape->setMargin(0.001);
+    m_collisionShapes.push_back(shape);
+
+    btTransform startTransform;
+    startTransform.setIdentity();
+
+    btScalar mass(0.f);
+    if (meshFileName != "fision//bodyMesh.obj")
+        mass = 0.1f;
+
+    bool isDynamic = (mass != 0.f);
+    btVector3 localInertia(0, 0, 0);
+    if (isDynamic)
+        shape->calculateLocalInertia(mass, localInertia);
+    float color[4] = {1, 1, 1, 1};
+    if (meshFileName != "fision//bodyMesh.obj")
+        color[0] = 0;
+    float orn[4] = {0, 0, 0, 1};
+    float pos[4] = {0, 0.8, 0, 0};
+    btVector3 position(pos[0], pos[1], pos[2]);
+    startTransform.setOrigin(position);
+    btRigidBody *body = createRigidBody(mass, startTransform, shape);
+
+    body->setContactStiffnessAndDamping(300,10);
+
+    bool useConvexHullForRendering = ((m_options & ObjUseConvexHullForRendering) != 0);
+
+
+    if (!useConvexHullForRendering) {
+        int shapeId = m_guiHelper->registerGraphicsShape(&glmesh->m_vertices->at(0).xyzw[0],
+                                                         glmesh->m_numvertices,
+                                                         &glmesh->m_indices->at(0),
+                                                         glmesh->m_numIndices,
+                                                         B3_GL_TRIANGLES, -1);
+        shape->setUserIndex(shapeId);
+        int renderInstance = m_guiHelper->registerGraphicsInstance(shapeId, pos, orn, color, scaling);
+        body->setUserIndex(renderInstance);
+    }
+}
+
 void GarmentFit::createClothPath(const btScalar s,
                                 const int numX,
                                 const int numY,
@@ -288,7 +279,7 @@ void GarmentFit::createClothPath(const btScalar s,
                                                        numX, numY,
                                                        fixed, true);
     // This is thickness for cloth
-    cloth->getCollisionShape()->setMargin(0.0001f);
+//    cloth->getCollisionShape()->setMargin(0.0001f);
     cloth->generateBendingConstraints(2, cloth->appendMaterial());
     cloth->setTotalMass(0.01);
     //cloth->m_cfg.citerations = 10;
@@ -309,11 +300,12 @@ void GarmentFit::createSoftBody(tinyobj::shape_t& objshape) {
         vertices[i] = (btScalar)objshape.mesh.positions[i];
     btSoftBody *garment = btSoftBodyHelpers::CreateFromTriMesh(softBodyWorldInfo, &vertices[0],
                                                                &indices[0], (int)objshape.mesh.indices.size()/3, false);
-    garment->getCollisionShape()->setMargin(0.5f);
+    garment->getCollisionShape()->setMargin(0.001f);
     garment->generateBendingConstraints(2, garment->appendMaterial());
     garment->setTotalMass(0.1);
     garment->m_cfg.piterations = 2;
     garment->m_cfg.kDP = 0.0f;
+    garment->m_cfg.kDF = 0.9f;
     getSoftDynamicsWorld()->addSoftBody(garment);
 }
 
