@@ -1,3 +1,4 @@
+add_definitions( -DINCLUDE_CLOTH_DEMOS )
 
 INCLUDE_DIRECTORIES(
 	.
@@ -350,6 +351,8 @@ SET(BulletExampleBrowser_SRCS
   ../Constraints/ConstraintPhysicsSetup.cpp
   ../Constraints/ConstraintPhysicsSetup.h
 
+    ../SoftDemo/SoftDemo.cpp
+    ../SoftDemo/SoftDemo.h
 
 	../ThirdPartyLibs/stb_image/stb_image.cpp
 	../ThirdPartyLibs/stb_image/stb_image.h

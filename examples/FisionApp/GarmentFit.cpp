@@ -169,7 +169,7 @@ void GarmentFit::initPhysics() {
         const btScalar s = 1; //size of cloth patch
         const int NUM_X = 50; //vertices on X axis
         const int NUM_Y = 50; //vertices on Z axis
-//        createClothPath(s,NUM_X,NUM_Y);
+        createClothPath(s,NUM_X,NUM_Y);
 
         const char *jacketFileName = "fision//JacketMesh.obj";
         char relativeFileName2[1024];
@@ -213,7 +213,7 @@ void GarmentFit::LoadRigidBody(const char* relativeFileName, const char* meshFil
     btConvexHullShape *shape = new btConvexHullShape((const btScalar *) (&(v.xyzw[0])), glmesh->m_numvertices,
                                                      sizeof(GLInstanceVertex));
 
-    float scaling[4] = {1, 1, 1, 1};
+    float scaling[4] = {.1, .1, .1, 1};
     btVector3 localScaling(scaling[0], scaling[1], scaling[2]);
     shape->setLocalScaling(localScaling);
 
@@ -221,9 +221,9 @@ void GarmentFit::LoadRigidBody(const char* relativeFileName, const char* meshFil
         shape->optimizeConvexHull();
     }
 
-//    if (m_options & ComputePolyhedralFeatures) {
-//        shape->initializePolyhedralFeatures();
-//    }
+    if (m_options & ComputePolyhedralFeatures) {
+        shape->initializePolyhedralFeatures();
+    }
 
     shape->setMargin(0.001);
     m_collisionShapes.push_back(shape);
@@ -279,7 +279,7 @@ void GarmentFit::createClothPath(const btScalar s,
                                                        numX, numY,
                                                        fixed, true);
     // This is thickness for cloth
-//    cloth->getCollisionShape()->setMargin(0.0001f);
+    cloth->getCollisionShape()->setMargin(0.0001f);
     cloth->generateBendingConstraints(2, cloth->appendMaterial());
     cloth->setTotalMass(0.01);
     //cloth->m_cfg.citerations = 10;
