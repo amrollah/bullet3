@@ -83,7 +83,7 @@ struct GarmentFit : public CommonRigidBodyBase {
     }
 
     void resetCamera() {
-        float dist = 4;
+        float dist = 2;
         float pitch = 150;
         float yaw = 35;
         float targetPos[3] = {0, 0, 0};
@@ -94,6 +94,7 @@ struct GarmentFit : public CommonRigidBodyBase {
     void LoadRigidBody(const char* relativeFileName, const char* meshFileName);
 
     btSoftBodyWorldInfo softBodyWorldInfo;
+    btRigidBody *body;
 };
 
 void GarmentFit::initPhysics() {
@@ -110,7 +111,7 @@ void GarmentFit::initPhysics() {
                 +btIDebugDraw::DBG_DrawConstraints);
 
     ///create a few basic rigid bodies
-    btBoxShape *groundShape = createBoxShape(btVector3(btScalar(50.), btScalar(50.), btScalar(50.)));
+    btBoxShape *groundShape = createBoxShape(btVector3(btScalar(5.), btScalar(.1), btScalar(5.)));
 
 
     //groundShape->initializePolyhedralFeatures();
@@ -120,38 +121,38 @@ void GarmentFit::initPhysics() {
 
     btTransform groundTransform;
     groundTransform.setIdentity();
-    groundTransform.setOrigin(btVector3(0, -50, 0)); // -75
+    groundTransform.setOrigin(btVector3(0, -1.22, 0)); // -75
 
     {
         btScalar mass(0.);
         createRigidBody(mass, groundTransform, groundShape, btVector4(0, 0, 1, 1));
     }
-    btCollisionShape* childShape1 = new btSphereShape(btScalar(1.5));
+//    btCollisionShape* childShape1 = new btSphereShape(btScalar(1.5));
 //    m_guiHelper->createCollisionShapeGraphicsObject(childShape1);
-    m_collisionShapes.push_back(childShape1);
-    btCollisionShape* childShape2 = new btSphereShape(btScalar(0.5));
+//    m_collisionShapes.push_back(childShape1);
+//    btCollisionShape* childShape2 = new btSphereShape(btScalar(0.5));
 //    m_guiHelper->createCollisionShapeGraphicsObject(childShape2);
-    m_collisionShapes.push_back(childShape2);
+//    m_collisionShapes.push_back(childShape2);
 
-    btTransform groundTransform1;
-    groundTransform1.setIdentity();
-    float pos[4] = {0, 1.8, 0, 0};
-    btVector3 position(pos[0], pos[1], pos[2]);
-    groundTransform1.setOrigin(position);
-    {
-        btScalar mass(1.);
-        createRigidBody(mass, groundTransform1, childShape1, btVector4(0, 0, 1, 1));
-    }
-
-    btTransform groundTransform2;
-    groundTransform2.setIdentity();
-    float pos2[4] = {0, 1.8, 0, 0};
-    btVector3 position2(pos[0], pos[1], pos[2]);
-    groundTransform2.setOrigin(position2);
-    {
-        btScalar mass(1.);
-        createRigidBody(mass, groundTransform2, childShape2, btVector4(0, 1, 0, 1));
-    }
+//    btTransform groundTransform1;
+//    groundTransform1.setIdentity();
+//    float pos[4] = {0, 1.8, 0, 0};
+//    btVector3 position(pos[0], pos[1], pos[2]);
+//    groundTransform1.setOrigin(position);
+//    {
+//        btScalar mass(1.);
+//        createRigidBody(mass, groundTransform1, childShape1, btVector4(0, 0, 1, 1));
+//    }
+//
+//    btTransform groundTransform2;
+//    groundTransform2.setIdentity();
+//    float pos2[4] = {0, 1.8, 0, 0};
+//    btVector3 position2(pos[0], pos[1], pos[2]);
+//    groundTransform2.setOrigin(position2);
+//    {
+//        btScalar mass(1.);
+//        createRigidBody(mass, groundTransform2, childShape2, btVector4(0, 1, 0, 1));
+//    }
 
 
     //load our obj mesh
@@ -169,7 +170,7 @@ void GarmentFit::initPhysics() {
         const btScalar s = 1; //size of cloth patch
         const int NUM_X = 50; //vertices on X axis
         const int NUM_Y = 50; //vertices on Z axis
-        createClothPath(s,NUM_X,NUM_Y);
+//        createClothPath(s,NUM_X,NUM_Y);
 
         const char *jacketFileName = "fision//JacketMesh.obj";
         char relativeFileName2[1024];
@@ -182,7 +183,7 @@ void GarmentFit::initPhysics() {
         std:: string err = tinyobj::LoadObj(shapes_j, relativeFileName2, pathPrefix2);
         tinyobj::shape_t& jacket = shapes_j[0];
 
-//        createSoftBody(jacket);
+        createSoftBody(jacket);
 //        LoadRigidBody(relativeFileName2, jacketFileName);
 
         const char *trousersFileName = "fision//TrousersMesh.obj";
@@ -196,7 +197,7 @@ void GarmentFit::initPhysics() {
         err = tinyobj::LoadObj(shapes_t, relativeFileName3, pathPrefix3);
         tinyobj::shape_t& trousers = shapes_t[0];
 
-//        createSoftBody(trousers);
+        createSoftBody(trousers);
 
     }
 
@@ -213,7 +214,7 @@ void GarmentFit::LoadRigidBody(const char* relativeFileName, const char* meshFil
     btConvexHullShape *shape = new btConvexHullShape((const btScalar *) (&(v.xyzw[0])), glmesh->m_numvertices,
                                                      sizeof(GLInstanceVertex));
 
-    float scaling[4] = {.1, .1, .1, 1};
+    float scaling[4] = {1, 1, 1, 1};
     btVector3 localScaling(scaling[0], scaling[1], scaling[2]);
     shape->setLocalScaling(localScaling);
 
@@ -225,7 +226,7 @@ void GarmentFit::LoadRigidBody(const char* relativeFileName, const char* meshFil
         shape->initializePolyhedralFeatures();
     }
 
-    shape->setMargin(0.001);
+    shape->setMargin(0.00001);
     m_collisionShapes.push_back(shape);
 
     btTransform startTransform;
@@ -243,12 +244,12 @@ void GarmentFit::LoadRigidBody(const char* relativeFileName, const char* meshFil
     if (meshFileName != "fision//bodyMesh.obj")
         color[0] = 0;
     float orn[4] = {0, 0, 0, 1};
-    float pos[4] = {0, 0.8, 0, 0};
+    float pos[4] = {0, 0, 0, 0};
     btVector3 position(pos[0], pos[1], pos[2]);
     startTransform.setOrigin(position);
-    btRigidBody *body = createRigidBody(mass, startTransform, shape);
+    body = createRigidBody(mass, startTransform, shape);
 
-    body->setContactStiffnessAndDamping(300,10);
+    body->setFriction( 0.8f );
 
     bool useConvexHullForRendering = ((m_options & ObjUseConvexHullForRendering) != 0);
 
@@ -279,7 +280,7 @@ void GarmentFit::createClothPath(const btScalar s,
                                                        numX, numY,
                                                        fixed, true);
     // This is thickness for cloth
-    cloth->getCollisionShape()->setMargin(0.0001f);
+    cloth->getCollisionShape()->setMargin(0.000001f);
     cloth->generateBendingConstraints(2, cloth->appendMaterial());
     cloth->setTotalMass(0.01);
     //cloth->m_cfg.citerations = 10;
@@ -299,28 +300,43 @@ void GarmentFit::createSoftBody(tinyobj::shape_t& objshape) {
     for (int i=0;i<objshape.mesh.positions.size();i++)
         vertices[i] = (btScalar)objshape.mesh.positions[i];
     btSoftBody *garment = btSoftBodyHelpers::CreateFromTriMesh(softBodyWorldInfo, &vertices[0],
-                                                               &indices[0], (int)objshape.mesh.indices.size()/3, false);
-    garment->getCollisionShape()->setMargin(0.001f);
-    garment->generateBendingConstraints(2, garment->appendMaterial());
-    garment->setTotalMass(0.1);
-    garment->m_cfg.piterations = 2;
-    garment->m_cfg.kDP = 0.0f;
-    garment->m_cfg.kDF = 0.9f;
+                                                               &indices[0], (int)objshape.mesh.indices.size()/3);
+    garment->getCollisionShape()->setMargin(0.00001f);
+    btSoftBody::Material*	pm=garment->appendMaterial();
+    pm->m_kLST				=	0.5;
+    pm->m_flags				-=	btSoftBody::fMaterial::DebugDraw;
+    garment->generateBendingConstraints(2,pm);
+    garment->m_cfg.piterations = 10;
+    garment->m_cfg.citerations = 10;
+    garment->m_cfg.diterations = 10;
+    garment->m_cfg.kDF			=	0.5;
+    garment->randomizeConstraints();
+//    garment->scale(btVector3(6,6,6));
+    garment->setTotalMass(10,true);
+    std::vector<int> fixNodes = {0, 100, 101,102,1001,202,24, 400 , 500};
+    for (int i=0;i<garment->m_nodes.size(); i++)
+        garment->appendAnchor(i,body);
+//    for (std::vector<int>::iterator it = fixNodes.begin() ; it != fixNodes.end(); ++it)
+//        garment->setMass(*it, 0);
     getSoftDynamicsWorld()->addSoftBody(garment);
 }
 
+void findTopNodes(btSoftBody *garment, std::vector<int> topNodes, int N){
+//TODO: implement a method to extrct top points or vertex group points to fix later or anchor to body.
+}
 
 void GarmentFit::renderScene() {
+    CommonRigidBodyBase::renderScene();
     btSoftRigidDynamicsWorld *softWorld = getSoftDynamicsWorld();
     for (int i = 0; i < softWorld->getSoftBodyArray().size(); i++) {
         btSoftBody *psb = (btSoftBody *) softWorld->getSoftBodyArray()[i];
 //        if (softWorld->getDebugDrawer() && !(softWorld->getDebugDrawer()->getDebugMode() & (btIDebugDraw::DBG_DrawWireframe)))
         {
             btSoftBodyHelpers::DrawFrame(psb, softWorld->getDebugDrawer());
-            btSoftBodyHelpers::Draw(psb, softWorld->getDebugDrawer(), softWorld->getDrawFlags());
+            btSoftBodyHelpers::Draw(psb, softWorld->getDebugDrawer(), fDrawFlags::Faces);
+            //softWorld->getDrawFlags());
         }
     }
-    CommonRigidBodyBase::renderScene();
 }
 
 
