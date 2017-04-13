@@ -226,7 +226,7 @@ void GarmentFit::LoadRigidBody(const char* relativeFileName, const char* meshFil
         shape->initializePolyhedralFeatures();
     }
 
-    shape->setMargin(0.00001);
+    shape->setMargin(0.001);
     m_collisionShapes.push_back(shape);
 
     btTransform startTransform;
@@ -249,7 +249,7 @@ void GarmentFit::LoadRigidBody(const char* relativeFileName, const char* meshFil
     startTransform.setOrigin(position);
     body = createRigidBody(mass, startTransform, shape);
 
-    body->setFriction( 0.8f );
+    body->setFriction( 0.85 );
 
     bool useConvexHullForRendering = ((m_options & ObjUseConvexHullForRendering) != 0);
 
@@ -280,7 +280,7 @@ void GarmentFit::createClothPath(const btScalar s,
                                                        numX, numY,
                                                        fixed, true);
     // This is thickness for cloth
-    cloth->getCollisionShape()->setMargin(0.000001f);
+    cloth->getCollisionShape()->setMargin(0.0f);
     cloth->generateBendingConstraints(2, cloth->appendMaterial());
     cloth->setTotalMass(0.01);
     //cloth->m_cfg.citerations = 10;
@@ -301,22 +301,23 @@ void GarmentFit::createSoftBody(tinyobj::shape_t& objshape) {
         vertices[i] = (btScalar)objshape.mesh.positions[i];
     btSoftBody *garment = btSoftBodyHelpers::CreateFromTriMesh(softBodyWorldInfo, &vertices[0],
                                                                &indices[0], (int)objshape.mesh.indices.size()/3);
-    garment->getCollisionShape()->setMargin(0.00001f);
+    garment->getCollisionShape()->setMargin(0.0f);
     btSoftBody::Material*	pm=garment->appendMaterial();
-    pm->m_kLST				=	0.5;
+    pm->m_kLST				=	0.95;
     pm->m_flags				-=	btSoftBody::fMaterial::DebugDraw;
-    garment->generateBendingConstraints(2,pm);
-    garment->m_cfg.piterations = 10;
-    garment->m_cfg.citerations = 10;
-    garment->m_cfg.diterations = 10;
-    garment->m_cfg.kDF			=	0.5;
+    garment->generateBendingConstraints(1,pm);
+    garment->m_cfg.piterations = 5;
+    garment->m_cfg.citerations = 2;
+    garment->m_cfg.diterations = 5;
+    garment->m_cfg.kDF			=	0.1;
     garment->randomizeConstraints();
 //    garment->scale(btVector3(6,6,6));
-    garment->setTotalMass(10,true);
-    std::vector<int> fixNodes = {0, 100, 101,102,1001,202,24, 400 , 500};
-    for (int i=0;i<garment->m_nodes.size(); i++)
+    garment->setTotalMass(1,true);
+    std::vector<int> fixNodes = {0, 40, 50, 100, 110, 140, 1001,202,24, 400 , 500};
+    for (int i=0;i<garment->m_nodes.size(); i+=10)
         garment->appendAnchor(i,body);
 //    for (std::vector<int>::iterator it = fixNodes.begin() ; it != fixNodes.end(); ++it)
+//        garment->appendAnchor(*it,body);
 //        garment->setMass(*it, 0);
     getSoftDynamicsWorld()->addSoftBody(garment);
 }
