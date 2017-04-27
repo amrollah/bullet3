@@ -216,6 +216,10 @@ SET(BulletExampleBrowser_SRCS
 	../Evolution/NN3DWalkersTimeWarpBase.h
 	../ExtendedTutorials/NewtonsRopeCradle.cpp
 	../ExtendedTutorials/NewtonsRopeCradle.h
+
+    ../ExtendedTutorials/TimeWarp.cpp
+	../ExtendedTutorials/TimeWarp.h
+   	../ExtendedTutorials/BulletUtils.hpp
 	../Collision/CollisionSdkC_Api.cpp
 	../Collision/CollisionSdkC_Api.h
 	../Collision/CollisionTutorialBullet2.cpp

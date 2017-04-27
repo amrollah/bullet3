@@ -75,6 +75,7 @@
 #include "../ExtendedTutorials/NewtonsCradle.h"
 #include "../ExtendedTutorials/NewtonsRopeCradle.h"
 #include "../ExtendedTutorials/MultiPendulum.h"
+#include "../ExtendedTutorials/TimeWarp.h"
 #include "../Evolution/NN3DWalkers.h"
 
 struct ExampleEntry
@@ -321,6 +322,7 @@ static ExampleEntry gDefaultExamples[]=
 	ExampleEntry(1,"Newton's Cradle", "Create a Newton's Cradle using a pair of point2point/slider constraints. Press 1/2 to lengthen/shorten the pendula, press 3 to displace pendula. Use the sliders to select the number (reset simulation), length and restitution of pendula, the number of displaced pendula and apply the displacement force.", ET_NewtonsCradleCreateFunc),
 	ExampleEntry(1,"Newton's Rope Cradle", "Create a Newton's Cradle using ropes. Press 3 to displace pendula. Use the sliders to select the number (reset simulation), length and restitution of pendula and the number of displaced pendula and apply the displacement force.",ET_NewtonsRopeCradleCreateFunc),
 	ExampleEntry(1,"Multi-Pendulum", "Create a Multi-Pendulum using point2point/slider constraints. Press 1/2 to lengthen/shorten the pendula, press 3 to displace pendula. Use the sliders to select the number (reset simulation), length and restitution of pendula, the number of displaced pendula and apply the displacement force.",ET_MultiPendulumCreateFunc),
+    ExampleEntry(1,"Time Warp", "Implement the canonical game loop to run a simulation fully deterministic. Control the simulation speed, internal Application Ticks, Physics steps per second, FPS, and learn about ERP/CFM. Use the buttons to trigger problematic settings and see how it influences the simulation. Press space to reset the simulation, hit 'Back to normal' to reset the settings.",ET_TimeWarpCreateFunc),
 
 	ExampleEntry(9,"Evolution"),
 	ExampleEntry(1,"Neural Network 3D Walkers","A simple example of using evolution to make a creature walk.",ET_NN3DWalkersCreateFunc),
