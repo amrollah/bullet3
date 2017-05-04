@@ -39,7 +39,8 @@ subject to the following restrictions:
 #define ARRAY_SIZE_Y 5
 #define ARRAY_SIZE_X 5
 #define ARRAY_SIZE_Z 5
-#define SCALE_FACTOR 10
+#define SCALE_FACTOR 20
+#define FIXED_SUBSTEP 1./20.
 
 #include "LinearMath/btVector3.h"
 #include "LinearMath/btAlignedObjectArray.h"
@@ -60,6 +61,7 @@ struct GarmentFit : public CommonRigidBodyBase {
     virtual void initPhysics();
 
     virtual void renderScene();
+    virtual void stepSimulation(float deltaTime);
 
     void createEmptyDynamicsWorld() {
         m_collisionConfiguration = new btSoftBodyRigidBodyCollisionConfiguration();
@@ -70,10 +72,8 @@ struct GarmentFit : public CommonRigidBodyBase {
 
         m_dynamicsWorld = new btSoftRigidDynamicsWorld(m_dispatcher, m_broadphase, m_solver, m_collisionConfiguration);
         m_dynamicsWorld->setGravity(btVector3(0, -10, 0));
-        btCollisionDispatcher * dispatcher = static_cast<btCollisionDispatcher *>(m_dynamicsWorld ->getDispatcher());
-        btGImpactCollisionAlgorithm::registerAlgorithm(dispatcher);
-        #define FIXED_SUBSTEP 1./70.
-        m_dynamicsWorld->stepSimulation(btScalar(1.)/btScalar(60.), 1, FIXED_SUBSTEP);
+//        btCollisionDispatcher * dispatcher = static_cast<btCollisionDispatcher *>(m_dynamicsWorld ->getDispatcher());
+//        btGImpactCollisionAlgorithm::registerAlgorithm(dispatcher);
 
         softBodyWorldInfo.m_broadphase = m_broadphase;
         softBodyWorldInfo.m_dispatcher = m_dispatcher;
@@ -94,11 +94,13 @@ struct GarmentFit : public CommonRigidBodyBase {
         float targetPos[3] = {0, 0, 0};
         m_guiHelper->resetCamera(dist, pitch, yaw, targetPos[0], targetPos[1], targetPos[2]);
     }
+
     void createClothPath(const btScalar s, const int numX, const int numY, const int fixed= 0);
-    void createSoftBody(tinyobj::shape_t& shape);
+    void createSoftBody(tinyobj::shape_t& objshape, bool anchorToBody = false);
     void LoadRigidBody(const char* relativeFileName, const char* meshFileName);
     void findFixNodes(btScalar *vertices, std::vector<int> &fixNodes, int size);
     void expandBody(float expansionFactor);
+    void setOrigBodyShape();
 
     btSoftBodyWorldInfo softBodyWorldInfo;
     btRigidBody *body;
@@ -106,12 +108,21 @@ struct GarmentFit : public CommonRigidBodyBase {
     GLInstanceGraphicsShape *orig_body;
     float expansionFactor;
     int iteration;
+    btCollisionShape* body_shape;
+    btCollisionShape* orig_human_shape;
 };
 
 static btVector3*	gGroundVertices=0;
 static int*	gGroundIndices=0;
 static float waveheight = 0.5f;
 const float TRIANGLE_SIZE=0.5f;
+
+void GarmentFit::stepSimulation(float deltaTime) {
+    printf("%f\n", deltaTime);
+    if (m_dynamicsWorld){
+        m_dynamicsWorld->stepSimulation(FIXED_SUBSTEP, 1, FIXED_SUBSTEP);
+    }
+}
 
 void GarmentFit::initPhysics() {
     m_guiHelper->setUpAxis(1);
@@ -122,13 +133,13 @@ void GarmentFit::initPhysics() {
     //m_dynamicsWorld->setGravity(btVector3(0,0,0));
     m_guiHelper->createPhysicsDebugDrawer(m_dynamicsWorld);
 //
-    if (m_dynamicsWorld->getDebugDrawer())
-        m_dynamicsWorld->getDebugDrawer()->setDebugMode(
-                btIDebugDraw::DBG_DrawWireframe
-//                + btIDebugDraw::DBG_DrawContactPoints
-                +btIDebugDraw::DBG_DrawAabb
-//                +btIDebugDraw::DBG_DrawConstraints
- );
+//    if (m_dynamicsWorld->getDebugDrawer())
+//        m_dynamicsWorld->getDebugDrawer()->setDebugMode(
+//                btIDebugDraw::DBG_DrawWireframe
+////                + btIDebugDraw::DBG_DrawContactPoints
+//                +btIDebugDraw::DBG_DrawAabb
+////                +btIDebugDraw::DBG_DrawConstraints
+// );
 
 //    btCollisionShape* groundShape = 0;
 //    {
@@ -273,17 +284,17 @@ void GarmentFit::initPhysics() {
 //    }
 
     //load our obj mesh
-    const char *orig_bodyFileName = "fision//bodyMesh.obj"; //bodyMesh.obj "teddy.obj";//sphere8.obj";//sponza_closed.obj";//sphere8.obj";
+    const char *orig_bodyFileName = "fision//3000_vertices//orig_bodyMesh.obj"; //bodyMesh.obj "teddy.obj";//sphere8.obj";//sponza_closed.obj";//sphere8.obj";
     char orig_relativeFileName[1024];
     char orig_pathPrefix[1024];
     if (b3ResourcePath::findResourcePath(orig_bodyFileName, orig_relativeFileName, 1024)) {
         b3FileUtils::extractPath(orig_relativeFileName, orig_pathPrefix, 1024);
     }
     orig_body = LoadMeshFromObj(orig_relativeFileName, "");
-
+//    setOrigBodyShape();
 //    LoadRigidBody(orig_relativeFileName, orig_bodyFileName);
 
-    const char *bodyFileName = "fision//bodyMesh.obj"; //bodyMesh_shrink.obj "teddy.obj";//sphere8.obj";//sponza_closed.obj";//sphere8.obj";
+    const char *bodyFileName = "fision//3000_vertices//bodyMesh.obj"; //bodyMesh_shrink.obj "teddy.obj";//sphere8.obj";//sponza_closed.obj";//sphere8.obj";
     char relativeFileName[1024];
     char pathPrefix[1024];
     if (b3ResourcePath::findResourcePath(bodyFileName, relativeFileName, 1024)) {
@@ -294,10 +305,10 @@ void GarmentFit::initPhysics() {
 
     // create garments
     {
-        const btScalar s = 1; //size of cloth patch
-        const int NUM_X = 20; //vertices on X axis
-        const int NUM_Y = 20; //vertices on Z axis
-        createClothPath(s,NUM_X,NUM_Y);
+        const btScalar s = 5; //size of cloth patch
+        const int NUM_X = 50; //vertices on X axis
+        const int NUM_Y = 50; //vertices on Z axis
+//        createClothPath(s,NUM_X,NUM_Y);
 
         const char *jacketFileName = "fision//3000_vertices//JacketMesh.obj";
         char relativeFileName2[1024];
@@ -311,7 +322,6 @@ void GarmentFit::initPhysics() {
         tinyobj::shape_t& jacket = shapes_j[0];
 
         createSoftBody(jacket);
-//        LoadRigidBody(relativeFileName2, jacketFileName);
 
         const char *trousersFileName = "fision//3000_vertices//TrousersMesh.obj";
         char relativeFileName3[1024];
@@ -324,7 +334,7 @@ void GarmentFit::initPhysics() {
         err = tinyobj::LoadObj(shapes_t, relativeFileName3, pathPrefix3);
         tinyobj::shape_t& trousers = shapes_t[0];
 
-        createSoftBody(trousers);
+        createSoftBody(trousers, true);
 
     }
 
@@ -332,6 +342,26 @@ void GarmentFit::initPhysics() {
 
 }
 
+/*
+ * Useless for now
+ */
+void GarmentFit::setOrigBodyShape(){
+    const GLInstanceVertex &v = orig_body->m_vertices->at(0);
+    int indexStride = 3*sizeof(int);
+    btTriangleIndexVertexArray* indexVertexArrays = new btTriangleIndexVertexArray(orig_body->m_numIndices/3,
+                                                                                   &orig_body->m_indices->at(0),
+                                                                                   indexStride,
+                                                                                   orig_body->m_numvertices,(btScalar*) (&(v.xyzw[0])),sizeof(GLInstanceVertex));
+
+//    btGImpactMeshShape * orig_human_shape = new btGImpactMeshShape(indexVertexArrays);
+//    orig_human_shape->updateBound();
+//
+    orig_human_shape = new btBvhTriangleMeshShape(indexVertexArrays,true);
+
+    float scaling[4] = {SCALE_FACTOR, SCALE_FACTOR, SCALE_FACTOR, 1};
+    btVector3 localScaling(scaling[0], scaling[1], scaling[2]);
+    orig_human_shape->setLocalScaling(localScaling);
+}
 
 void GarmentFit::LoadRigidBody(const char* relativeFileName, const char* meshFileName){
     m_body = LoadMeshFromObj(relativeFileName, "");
@@ -347,15 +377,16 @@ void GarmentFit::LoadRigidBody(const char* relativeFileName, const char* meshFil
                                                                                    indexStride,
                                                                                    m_body->m_numvertices,(btScalar*) (&(v.xyzw[0])),sizeof(GLInstanceVertex));
 
-//    btGImpactMeshShape * shape = new btGImpactMeshShape(indexVertexArrays);
-//    shape->updateBound();
+//    btGImpactMeshShape * body_shape = new btGImpactMeshShape(indexVertexArrays);
+//    body_shape->updateBound();
 //
 //    bool useQuantizedAabbCompression = true;
-    btCollisionShape* shape = new btBvhTriangleMeshShape(indexVertexArrays,true);
+    body_shape = new btBvhTriangleMeshShape(indexVertexArrays,true);
+//    body_shape = new btCapsuleShape(0.01, 0.2);
 
     float scaling[4] = {SCALE_FACTOR, SCALE_FACTOR, SCALE_FACTOR, 1};
     btVector3 localScaling(scaling[0], scaling[1], scaling[2]);
-    shape->setLocalScaling(localScaling);
+    body_shape->setLocalScaling(localScaling);
 
 //    if (m_options & OptimizeConvexObj) {
 //        shape->optimizeConvexHull();
@@ -365,7 +396,7 @@ void GarmentFit::LoadRigidBody(const char* relativeFileName, const char* meshFil
 //        shape->initializePolyhedralFeatures();
 //    }
 
-    shape->setMargin(0.0);
+    body_shape->setMargin(0.5);
 //    m_collisionShapes.push_back(shape);
 
     btTransform startTransform;
@@ -378,7 +409,7 @@ void GarmentFit::LoadRigidBody(const char* relativeFileName, const char* meshFil
     bool isDynamic = (mass != 0.f);
     btVector3 localInertia(0, 0, 0);
     if (isDynamic)
-        shape->calculateLocalInertia(mass, localInertia);
+        body_shape->calculateLocalInertia(mass, localInertia);
     float color[4] = {1, 1, 1, 1};
     if (meshFileName != "fision//bodyMesh.obj")
         color[0] = 0;
@@ -386,18 +417,18 @@ void GarmentFit::LoadRigidBody(const char* relativeFileName, const char* meshFil
     float pos[4] = {0, 0, 0, 0};
     btVector3 position(pos[0], pos[1], pos[2]);
     startTransform.setOrigin(position);
-    body = createRigidBody(mass, startTransform, shape);
+    body = createRigidBody(mass, startTransform, body_shape);
 
     body->setFriction( 0.8f );
 
     bool useConvexHullForRendering = ((m_options & ObjUseConvexHullForRendering) != 0);
     if (!useConvexHullForRendering) {
-        int shapeId = m_guiHelper->registerGraphicsShape(&m_body->m_vertices->at(0).xyzw[0],
-                                                         m_body->m_numvertices,
-                                                         &m_body->m_indices->at(0),
-                                                         m_body->m_numIndices,
+        int shapeId = m_guiHelper->registerGraphicsShape(&orig_body->m_vertices->at(0).xyzw[0],
+                                                         orig_body->m_numvertices,
+                                                         &orig_body->m_indices->at(0),
+                                                         orig_body->m_numIndices,
                                                          B3_GL_TRIANGLES, -1);
-        shape->setUserIndex(shapeId);
+        body_shape->setUserIndex(shapeId);
         int renderInstance = m_guiHelper->registerGraphicsInstance(shapeId, pos, orn, color, scaling);
         body->setUserIndex(renderInstance);
     }
@@ -410,16 +441,16 @@ void GarmentFit::createClothPath(const btScalar s,
 
 
     btSoftBody *cloth = btSoftBodyHelpers::CreatePatch(softBodyWorldInfo,
-                                                       btVector3(-3*s , 4+s + 0.5, -0.5),
-                                                       btVector3(+3*s, 4+s + 0.5, -0.5),
-                                                       btVector3(-3*s, 4+s + 1, +s-0.5),
-                                                       btVector3(+3*s, 4+s + 1, +s-0.5),
+                                                       btVector3(-3*s, SCALE_FACTOR + 2 +s + 0.5, -0.5),
+                                                       btVector3(+3*s, SCALE_FACTOR + 2 +s + 0.5, -0.5),
+                                                       btVector3(-3*s, SCALE_FACTOR + 2 +s + 1, +s-0.5),
+                                                       btVector3(+3*s, SCALE_FACTOR + 2 +s + 1, +s-0.5),
                                                        numX, numY,
                                                        fixed, true);
     // This is thickness for cloth
-    cloth->getCollisionShape()->setMargin(0.2f);
+    cloth->getCollisionShape()->setMargin(0.5f);
     cloth->generateBendingConstraints(2, cloth->appendMaterial());
-    cloth->setTotalMass(1);
+    cloth->setTotalMass(0.1);
     cloth->m_cfg.citerations = 10;
 	cloth->m_cfg.diterations = 10;
     cloth->m_cfg.piterations = 10;
@@ -427,7 +458,7 @@ void GarmentFit::createClothPath(const btScalar s,
 }
 
 
-void GarmentFit::createSoftBody(tinyobj::shape_t& objshape) {
+void GarmentFit::createSoftBody(tinyobj::shape_t& objshape, bool anchorToBody) {
 
     int indices[objshape.mesh.indices.size()];
     for (int i=0;i<objshape.mesh.indices.size();i++)
@@ -441,16 +472,17 @@ void GarmentFit::createSoftBody(tinyobj::shape_t& objshape) {
     btVector3 localScaling(scaling[0], scaling[1], scaling[2]);
     garment->scale(localScaling);
 
-    float margin = std::max(0.1, SCALE_FACTOR/1500.0);
+    float margin = std::max(0.15, SCALE_FACTOR/1500.0);
+    printf("margin: %f\n", margin);
     garment->getCollisionShape()->setMargin(margin);
     btSoftBody::Material*	pm=garment->appendMaterial();
     pm->m_kLST				=	0;
     pm->m_kAST              =   0.0;
     pm->m_kVST              =   0.0;
-    pm->m_flags				-=	btSoftBody::fMaterial::DebugDraw;
-    garment->generateClusters(1024);
+//    pm->m_flags				-=	btSoftBody::fMaterial::DebugDraw;
+//    garment->generateClusters(1024);
     garment->generateBendingConstraints(2,pm);
-    garment->m_cfg.piterations = 20;
+    garment->m_cfg.piterations = 50;
     garment->m_cfg.citerations = 10;
     garment->m_cfg.diterations = 10;
     garment->m_cfg.kDF			=	0.0;
@@ -475,21 +507,29 @@ void GarmentFit::createSoftBody(tinyobj::shape_t& objshape) {
 // 	btSoftBody::fCollision::CL_RS
 // +btSoftBody::fCollision::CL_SELF +
 //                    btSoftBody::fCollision::SDF_RS
-            ;
+//            ;
 //    garment->generateClusters(0);
-//    garment->randomizeConstraints();
+    garment->randomizeConstraints();
 //    garment->scale(btVector3(6,6,6));
 //    garment->m_cfg.timescale = 10;
     garment->setTotalMass(1,true);
-    std::vector<int> fixNodes;
-    findFixNodes(vertices, fixNodes, objshape.mesh.positions.size());
+    if (anchorToBody) {
+        std::vector<int> fixNodes;
+        for (int i=1,idx=0;i<objshape.mesh.positions.size();i+=3,idx++){
+            printf("%f", vertices[i]);
+            if (vertices[i]>(0.01)){ // The waist band is around 0.01 height in the mesh vertices
+                fixNodes.push_back(idx);
+            }
+        }
+//        findFixNodes(vertices, fixNodes, objshape.mesh.positions.size());
 //    std::vector<int> fixNodes = {0, 40, 50, 100, 110, 140, 1001,202,24, 400 , 500};
 //    for (int i=0;i<garment->m_nodes.size(); i+=30)
 //        garment->appendAnchor(i,body);
-//    for (std::vector<int>::iterator it = fixNodes.begin() ; it != fixNodes.end(); ++it) {
-//        garment->appendAnchor(*it, body);
-//        printf("anchor: %d\n", *it);
-//    }
+        for (std::vector<int>::iterator it = fixNodes.begin(); it != fixNodes.end(); ++it) {
+            garment->appendAnchor(*it, body);
+            printf("anchor: %d\n", *it);
+        }
+    }
 //    float scale = 0.06;
 //    garment->setRestLengthScale(scale);
 //    btSoftBody::Face f;
@@ -505,7 +545,7 @@ void GarmentFit::createSoftBody(tinyobj::shape_t& objshape) {
 }
 
 void GarmentFit::findFixNodes(btScalar *vertices, std::vector<int> &fixNodes, int size){
-//TODO: implement a method to extrct top points or vertex group points to fix later or anchor to body.
+//TODO: implement a method to extract top points or vertex group points to fix later or anchor to body.
     int i,j;
     // find the minimum and maximum of z axis in vertices
     btScalar minX = vertices[0];
@@ -535,23 +575,27 @@ void GarmentFit::renderScene() {
         btSoftBody *psb = (btSoftBody *) softWorld->getSoftBodyArray()[i];
 //        if (softWorld->getDebugDrawer() && !(softWorld->getDebugDrawer()->getDebugMode() & (btIDebugDraw::DBG_DrawWireframe)))
         {
-            btSoftBodyHelpers::DrawFrame(psb, softWorld->getDebugDrawer());
+//            btSoftBodyHelpers::DrawFrame(psb, softWorld->getDebugDrawer());
             btSoftBodyHelpers::Draw(psb, softWorld->getDebugDrawer(), fDrawFlags::Faces
 //                                                                      + fDrawFlags::Contacts
             );
         }
     }
-//    if (iteration>0 &&  iteration%1==0) {
-//        expansionFactor = std::min(expansionFactor + 0.01, 1.0);
-//        if (expansionFactor <= 1) {
+    if (iteration>0 &&  iteration%10==0) {
+        if (expansionFactor < 1) {
+            expansionFactor = std::min(expansionFactor + 0.01, 1.0);
 //            printf("iteration:: %d \n", iteration);
-//            expandBody(expansionFactor);
-////            m_guiHelper->autogenerateGraphicsObjects(m_dynamicsWorld);
-//        }
-//    }
+            expandBody(expansionFactor);
+//            m_guiHelper->autogenerateGraphicsObjects(m_dynamicsWorld);
+        }
+    }
 }
 
 void GarmentFit::expandBody(float expansionFactor){
+    //remove the rigidbodies from the dynamics world and delete them
+    btSoftRigidDynamicsWorld *softWorld = getSoftDynamicsWorld();
+    softWorld->removeRigidBody(body);
+
     for (int i=0;i<m_body->m_numvertices;i++){
         m_body->m_vertices->at(i).xyzw[0] = (1-expansionFactor)*m_body->m_vertices->at(i).xyzw[0] + expansionFactor*orig_body->m_vertices->at(i).xyzw[0];
         m_body->m_vertices->at(i).xyzw[1] = (1-expansionFactor)*m_body->m_vertices->at(i).xyzw[1] + expansionFactor*orig_body->m_vertices->at(i).xyzw[1];
@@ -565,13 +609,13 @@ void GarmentFit::expandBody(float expansionFactor){
 //        m_body->m_vertices->at(i).uv[1] = (1-expansionFactor)*m_body->m_vertices->at(i).uv[1] + expansionFactor*orig_body->m_vertices->at(i).uv[1];
     }
 
-    const GLInstanceVertex &v = m_body->m_vertices->at(0);
-
-    int indexStride = 3*sizeof(int);
-    btTriangleIndexVertexArray* indexVertexArrays = new btTriangleIndexVertexArray(m_body->m_numIndices/3,
-                                                                                   &m_body->m_indices->at(0),
-                                                                                   indexStride,
-                                                                                   m_body->m_numvertices,(btScalar*) (&(v.xyzw[0])),sizeof(GLInstanceVertex));
+//    const GLInstanceVertex &v = m_body->m_vertices->at(0);
+//
+//    int indexStride = 3*sizeof(int);
+//    btTriangleIndexVertexArray* indexVertexArrays = new btTriangleIndexVertexArray(m_body->m_numIndices/3,
+//                                                                                   &m_body->m_indices->at(0),
+//                                                                                   indexStride,
+//                                                                                   m_body->m_numvertices,(btScalar*) (&(v.xyzw[0])),sizeof(GLInstanceVertex));
 
 //    btGImpactMeshShape * shape = new btGImpactMeshShape(indexVertexArrays);
 //    shape->updateBound();
@@ -580,11 +624,11 @@ void GarmentFit::expandBody(float expansionFactor){
 //                                                     sizeof(GLInstanceVertex));
 //
 //    bool useQuantizedAabbCompression = true;
-    btCollisionShape* shape = new btBvhTriangleMeshShape(indexVertexArrays,true);
-
+//    btCollisionShape* shape = new btBvhTriangleMeshShape(indexVertexArrays,true);
+//
     float scaling[4] = {SCALE_FACTOR, SCALE_FACTOR, SCALE_FACTOR, 1};
-    btVector3 localScaling(scaling[0], scaling[1], scaling[2]);
-    shape->setLocalScaling(localScaling);
+//    btVector3 localScaling(scaling[0], scaling[1], scaling[2]);
+//    shape->setLocalScaling(localScaling);
 
 //    if (m_options & OptimizeConvexObj) {
 //        shape->optimizeConvexHull();
@@ -594,20 +638,20 @@ void GarmentFit::expandBody(float expansionFactor){
 //        shape->initializePolyhedralFeatures();
 //    }
 
-    shape->setMargin(0.0);
+    body_shape->setMargin(0.5);
 //    m_collisionShapes.push_back(shape);
 
     btTransform startTransform;
     startTransform.setIdentity();
-
+//
     btScalar mass(0.0f);
 //    if (meshFileName != "fision//bodyMesh.obj")
 //        mass = 0.1f;
 
-    bool isDynamic = (mass != 0.f);
-    btVector3 localInertia(0, 0, 0);
-    if (isDynamic)
-        shape->calculateLocalInertia(mass, localInertia);
+//    bool isDynamic = (mass != 0.f);
+//    btVector3 localInertia(0, 0, 0);
+//    if (isDynamic)
+//        shape->calculateLocalInertia(mass, localInertia);
     float color[4] = {1, 1, 1, 1};
 //    if (meshFileName != "fision//bodyMesh.obj")
 //        color[0] = 0;
@@ -615,21 +659,19 @@ void GarmentFit::expandBody(float expansionFactor){
     float pos[4] = {0, 0, 0, 0};
     btVector3 position(pos[0], pos[1], pos[2]);
     startTransform.setOrigin(position);
-    body = createRigidBody(mass, startTransform, shape);
+    body = createRigidBody(mass, startTransform, body_shape);
 
-    body->setFriction( 0.01f );
-
-    bool useConvexHullForRendering = ((m_options & ObjUseConvexHullForRendering) != 0);
-    if (!useConvexHullForRendering) {
-        int shapeId = m_guiHelper->registerGraphicsShape(&m_body->m_vertices->at(0).xyzw[0],
-                                                         m_body->m_numvertices,
-                                                         &m_body->m_indices->at(0),
-                                                         m_body->m_numIndices,
-                                                         B3_GL_TRIANGLES, -1);
-        shape->setUserIndex(shapeId);
-        int renderInstance = m_guiHelper->registerGraphicsInstance(shapeId, pos, orn, color, scaling);
-        body->setUserIndex(renderInstance);
-    }
+//
+//    body->setFriction( 0.01f );
+//
+//        int shapeId = m_guiHelper->registerGraphicsShape(&m_body->m_vertices->at(0).xyzw[0],
+//                                                         m_body->m_numvertices,
+//                                                         &m_body->m_indices->at(0),
+//                                                         m_body->m_numIndices,
+//                                                         B3_GL_TRIANGLES, -1);
+//        body_shape->setUserIndex(shapeId);
+//        int renderInstance = m_guiHelper->registerGraphicsInstance(shapeId, pos, orn, color, scaling);
+//        body->setUserIndex(renderInstance);
 }
 
 CommonExampleInterface *BasicExampleCreateFunc(CommonExampleOptions &options) {

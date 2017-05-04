@@ -33,6 +33,16 @@
 #include <BulletDynamics/MLCPSolvers/btLemkeSolver.h>
 #include <BulletDynamics/MLCPSolvers/btMLCPSolver.h>
 
+#include "../Utils/b3ResourcePath.h"
+#include "Bullet3Common/b3FileUtils.h"
+#include "../Importers/ImportObjDemo/LoadMeshFromObj.h"
+#include "../OpenGLWindow/GLInstanceGraphicsShape.h"
+#include "BulletSoftBody/btSoftRigidDynamicsWorld.h"
+#include "BulletSoftBody/btSoftBodyHelpers.h"
+#include "BulletSoftBody/btSoftBodyRigidBodyCollisionConfiguration.h"
+#include "BulletCollision/Gimpact/btGImpactCollisionAlgorithm.h"
+#include"../../ThirdPartyLibs/Wavefront/tiny_obj_loader.h"
+
 #include "BulletUtils.hpp" // ERP/CFM setting utils
 
 // sample scenery
@@ -51,6 +61,11 @@ static btRigidBody* gLargeBox = NULL; // larger high mass box attached to low ma
 static btRigidBody* gBouncingSphere = NULL; // bouncing sphere with restitution 1
 
 static btRigidBody* gMotorizedBox = NULL; // motorized hinge-box
+
+static btRigidBody *body = NULL;
+static btCollisionShape* body_shape = NULL;
+static btSoftBodyWorldInfo softBodyWorldInfo;
+#define SCALE_FACTOR 20
 
 static btScalar gSimulationSpeed = 1; // default simulation speed at startup
 
@@ -215,7 +230,11 @@ struct TimeWarpExample: public CommonRigidBodyBase {
 	virtual void performTrueSteps(btScalar timeStep); // physics stepping without interpolated substeps
 
 	virtual void performInterpolatedSteps(btScalar timeStep); // physics stepping with interpolated substeps
-
+    virtual btSoftRigidDynamicsWorld *getSoftDynamicsWorld() {
+        ///just make it a btSoftRigidDynamicsWorld please
+        ///or we will add type checking
+        return (btSoftRigidDynamicsWorld *) m_dynamicsWorld;
+    }
 	void performMaxStep(); // perform as many steps as possible
 
 	void performSpeedStep(); // force-perform the number of steps needed to achieve a certain speed (safe to too high speeds, meaning the application will lose time, not the physics)
@@ -223,10 +242,10 @@ struct TimeWarpExample: public CommonRigidBodyBase {
 	bool keyboardCallback(int key, int state); // keyboard callbacks
 
 	void resetCamera() { // reset the camera to its original position
-		float dist = 41;
-		float pitch = 52;
+        float dist = SCALE_FACTOR * 1.6;
+		float pitch = 152;
 		float yaw = 35;
-		float targetPos[3] = { 0, 0.46, 0 };
+		float targetPos[3] = { 20, 25, 20 };
 		m_guiHelper->resetCamera(dist, pitch, yaw, targetPos[0], targetPos[1],
 			targetPos[2]);
 	}
@@ -652,6 +671,113 @@ void TimeWarpExample::initPhysics() {
 		m_dynamicsWorld->addConstraint(motorizedHinge);
 	}
 
+    {
+        // Create Rigid Human Body Mesh
+        //load our obj mesh
+
+        const char *bodyFileName = "fision//3000_vertices//bodyMesh.obj"; //bodyMesh.obj "teddy.obj";//sphere8.obj";//sponza_closed.obj";//sphere8.obj";
+        char relativeFileName[1024];
+        char pathPrefix[1024];
+        if (b3ResourcePath::findResourcePath(bodyFileName, relativeFileName, 1024)) {
+            b3FileUtils::extractPath(relativeFileName, pathPrefix, 1024);
+        }
+        GLInstanceGraphicsShape *m_body;
+        m_body = LoadMeshFromObj(relativeFileName, "");
+        const GLInstanceVertex &v = m_body->m_vertices->at(0);
+        int indexStride = 3*sizeof(int);
+        btTriangleIndexVertexArray* indexVertexArrays = new btTriangleIndexVertexArray(m_body->m_numIndices/3,
+                                                                                       &m_body->m_indices->at(0),
+                                                                                       indexStride,
+                                                                                       m_body->m_numvertices,(btScalar*) (&(v.xyzw[0])),sizeof(GLInstanceVertex));
+
+        body_shape = new btBvhTriangleMeshShape(indexVertexArrays,true);
+
+        float scaling[4] = {SCALE_FACTOR, SCALE_FACTOR, SCALE_FACTOR, 1};
+        btVector3 localScaling(scaling[0], scaling[1], scaling[2]);
+        body_shape->setLocalScaling(localScaling);
+
+        body_shape->setMargin(0.0);
+
+        btTransform startTransform;
+        startTransform.setIdentity();
+
+        btScalar mass(0.0f);
+
+        bool isDynamic = (mass != 0.f);
+        btVector3 localInertia(0, 0, 0);
+        if (isDynamic)
+            body_shape->calculateLocalInertia(mass, localInertia);
+        float color[4] = {1, 1, 1, 1};
+        float orn[4] = {0, 0, 0, 1};
+        float pos[4] = {20, SCALE_FACTOR+4, 20, 0};
+        btVector3 position(pos[0], pos[1], pos[2]);
+        startTransform.setOrigin(position);
+        body = createRigidBody(mass, startTransform, body_shape);
+        body->setFriction( 0.8f );
+        int shapeId = m_guiHelper->registerGraphicsShape(&m_body->m_vertices->at(0).xyzw[0],
+                                                         m_body->m_numvertices,
+                                                         &m_body->m_indices->at(0),
+                                                         m_body->m_numIndices,
+                                                         B3_GL_TRIANGLES, -1);
+        body_shape->setUserIndex(shapeId);
+        int renderInstance = m_guiHelper->registerGraphicsInstance(shapeId, pos, orn, color, scaling);
+        body->setUserIndex(renderInstance);
+    }
+
+    {
+        // Create garments
+        const char *jacketFileName = "fision//3000_vertices//JacketMesh.obj";
+        char relativeFileName2[1024];
+        char pathPrefix2[1024];
+        if (b3ResourcePath::findResourcePath(jacketFileName, relativeFileName2, 1024)) {
+            b3FileUtils::extractPath(relativeFileName2, pathPrefix2, 1024);
+        }
+
+        std::vector<tinyobj::shape_t> shapes_j;
+        std:: string err = tinyobj::LoadObj(shapes_j, relativeFileName2, pathPrefix2);
+        tinyobj::shape_t& objshape = shapes_j[0];
+
+        int indices[objshape.mesh.indices.size()];
+        for (int i=0;i<objshape.mesh.indices.size();i++)
+            indices[i] = (int)objshape.mesh.indices[i];
+        btScalar vertices[objshape.mesh.positions.size()];
+        for (int i=0;i<objshape.mesh.positions.size();i++)
+            vertices[i] = (btScalar)objshape.mesh.positions[i];
+        btSoftBody *garment = btSoftBodyHelpers::CreateFromTriMesh(softBodyWorldInfo, &vertices[0],
+                                                                   &indices[0], (int)objshape.mesh.indices.size()/3);
+        float scaling[4] = {SCALE_FACTOR, SCALE_FACTOR, SCALE_FACTOR, 1};
+        btVector3 localScaling(scaling[0], scaling[1], scaling[2]);
+        garment->scale(localScaling);
+
+        float margin = std::max(0.15, SCALE_FACTOR/1500.0);
+//        printf("margin: %f\n", margin);
+        garment->getCollisionShape()->setMargin(margin);
+        btSoftBody::Material*	pm=garment->appendMaterial();
+        pm->m_kLST				=	0;
+        pm->m_kAST              =   0.0;
+        pm->m_kVST              =   0.0;
+        pm->m_flags				-=	btSoftBody::fMaterial::DebugDraw;
+        garment->generateBendingConstraints(2,pm);
+        garment->m_cfg.piterations = 50;
+        garment->m_cfg.citerations = 10;
+        garment->m_cfg.diterations = 10;
+        garment->m_cfg.kDF			=	0.0;
+        garment->m_cfg.kMT          =   0.0;
+        garment->m_cfg.kDP          =  0.0;
+        garment->randomizeConstraints();
+        garment->setTotalMass(1,true);
+        // Move to position of body
+        btTransform startTransform;
+        startTransform.setIdentity();
+        float pos[4] = {20, SCALE_FACTOR+4, 20, 0};
+        btVector3 position(pos[0], pos[1], pos[2]);
+        startTransform.setOrigin(position);
+        garment->transform(startTransform);
+
+        btSoftBodyHelpers::ReoptimizeLinkOrder(garment);
+        getSoftDynamicsWorld()->addSoftBody(garment);
+    }
+
 	m_guiHelper->autogenerateGraphicsObjects(m_dynamicsWorld);
 }
 
@@ -874,7 +1000,8 @@ void TimeWarpExample::setupParameterInterface(){
 void TimeWarpExample::createEmptyDynamicsWorld(){ // create an empty dynamics worlds according to the chosen settings via statics (top section of code)
 
 	///collision configuration contains default setup for memory, collision setup
-	m_collisionConfiguration = new btDefaultCollisionConfiguration();
+//	m_collisionConfiguration = new btDefaultCollisionConfiguration();
+    m_collisionConfiguration = new btSoftBodyRigidBodyCollisionConfiguration();
 	//m_collisionConfiguration->setConvexConvexMultipointIterations();
 
 	///use the default collision dispatcher. For parallel processing you can use a diffent dispatcher (see Extras/BulletMultiThreaded)
@@ -927,8 +1054,10 @@ void TimeWarpExample::createEmptyDynamicsWorld(){ // create an empty dynamics wo
 	if (SOLVER_TYPE != FSSOLVER) {
 		//TODO: Set parameters for other solvers
 
-		m_dynamicsWorld = new btDiscreteDynamicsWorld(m_dispatcher,
-			m_broadphase, m_solver, m_collisionConfiguration);
+//		m_dynamicsWorld = new btDiscreteDynamicsWorld(m_dispatcher,
+//			m_broadphase, m_solver, m_collisionConfiguration);
+
+        m_dynamicsWorld = new btSoftRigidDynamicsWorld(m_dispatcher, m_broadphase, m_solver, m_collisionConfiguration);
 
 		if (SOLVER_TYPE == DANZIGSOLVER || SOLVER_TYPE == GAUSSSEIDELSOLVER) {
 			m_dynamicsWorld->getSolverInfo().m_minimumSolverBatchSize = 1; //for mlcp solver it is better to have a small A matrix
@@ -941,10 +1070,20 @@ void TimeWarpExample::createEmptyDynamicsWorld(){ // create an empty dynamics wo
 	}
 	else{
 		//use btMultiBodyDynamicsWorld for Featherstone btMultiBody support
-		m_dynamicsWorld = new btMultiBodyDynamicsWorld(m_dispatcher,
-			m_broadphase, (btMultiBodyConstraintSolver*) m_solver,
-			m_collisionConfiguration);
+//		m_dynamicsWorld = new btMultiBodyDynamicsWorld(m_dispatcher,
+//			m_broadphase, (btMultiBodyConstraintSolver*) m_solver,
+//			m_collisionConfiguration);
+        m_dynamicsWorld = new btSoftRigidDynamicsWorld(m_dispatcher, m_broadphase, m_solver, m_collisionConfiguration);
 	}
+
+    // Setup soft world info
+//    btCollisionDispatcher * dispatcher = static_cast<btCollisionDispatcher *>(m_dynamicsWorld ->getDispatcher());
+//    btGImpactCollisionAlgorithm::registerAlgorithm(dispatcher);
+
+    softBodyWorldInfo.m_broadphase = m_broadphase;
+    softBodyWorldInfo.m_dispatcher = m_dispatcher;
+    softBodyWorldInfo.m_gravity = m_dynamicsWorld->getGravity();
+    softBodyWorldInfo.m_sparsesdf.Initialize();
 
 	changeERPCFM(); // set appropriate ERP/CFM values according to the string and damper properties of the constraint
 
@@ -1241,8 +1380,18 @@ void TimeWarpExample::performInterpolatedSteps(btScalar timeStep) { // perform i
 
 void TimeWarpExample::renderScene() { // render the scene
 	if(!gIsHeadless){ // while the simulation is not running headlessly, render to screen
-		CommonRigidBodyBase::renderScene();
+        CommonRigidBodyBase::renderScene();
+        btSoftRigidDynamicsWorld *softWorld = getSoftDynamicsWorld();
+        for (int i = 0; i < softWorld->getSoftBodyArray().size(); i++) {
+            btSoftBody *psb = (btSoftBody *) softWorld->getSoftBodyArray()[i];
+            {
+                btSoftBodyHelpers::Draw(psb, softWorld->getDebugDrawer(), fDrawFlags::Faces
+//                                                                      + fDrawFlags::Contacts
+                );
+            }
+        }
 	}
+
 }
 
 void TimeWarpExample::changePhysicsStepsPerSecond(float physicsStepsPerSecond) { // Change the number of physics time steps per second
