@@ -1,9 +1,14 @@
 add_definitions( -DINCLUDE_CLOTH_DEMOS )
+# Added by amrollah to support OpenCL demos
+#ADD_DEFINITIONS(-DB3_USE_CLEW)
 
 INCLUDE_DIRECTORIES(
 	.
 	${BULLET_PHYSICS_SOURCE_DIR}/src
 	${BULLET_PHYSICS_SOURCE_DIR}/examples/ThirdPartyLibs
+#    ${BULLET_PHYSICS_SOURCE_DIR}/examples/OpenCL/broadphase
+#    ${BULLET_PHYSICS_SOURCE_DIR}/examples/OpenCL/commonOpenCL
+#    ${BULLET_PHYSICS_SOURCE_DIR}/examples/OpenCL/rigidbody
 )
 
 FILE(GLOB GwenGUISupport_SRCS  "GwenGUISupport/*" )
@@ -82,6 +87,10 @@ INCLUDE_DIRECTORIES(
         .
         ${BULLET_PHYSICS_SOURCE_DIR}/src
         ${BULLET_PHYSICS_SOURCE_DIR}/examples/ThirdPartyLibs
+#        ${BULLET_PHYSICS_SOURCE_DIR}/examples/OpenCL/broadphase
+#        ${BULLET_PHYSICS_SOURCE_DIR}/examples/OpenCL/commonOpenCL
+#        ${BULLET_PHYSICS_SOURCE_DIR}/examples/OpenCL/rigidbody
+
 )
 
 
@@ -373,6 +382,13 @@ SET(BulletExampleBrowser_SRCS
 	../ThirdPartyLibs/tinyxml/tinyxmlparser.cpp
 	InProcessExampleBrowser.cpp
 	${BULLET_PHYSICS_SOURCE_DIR}/build3/bullet.rc
+#        ../OpenCL/broadphase/PairBench.cpp
+#        ../OpenCL/rigidbody/GpuConvexScene.cpp
+#        ../OpenCL/rigidbody/ConcaveScene.cpp
+#        ../OpenCL/rigidbody/GpuRigidBodyDemo.cpp
+#        ../OpenCL/rigidbody/GpuSphereScene.cpp
+#        ../OpenCL/rigidbody/GpuCompoundScene.cpp
+#        ../../src/Bullet3Collision/NarrowPhaseCollision/b3ConvexUtility.cpp
 )
 
 
@@ -384,6 +400,11 @@ ADD_EXECUTABLE(App_ExampleBrowser
 		${ExtendedTutorialsSources}
 		${BulletExampleBrowser_SRCS} 
 )
+
+#target_include_directories(App_ExampleBrowser PUBLIC ${CMAKE_SOURCE_DIR}/src/Bullet3OpenCL/
+#        ${CMAKE_SOURCE_DIR}/src/BulletDynamics/)
+#TARGET_LINK_LIBRARIES(App_ExampleBrowser ${CMAKE_SOURCE_DIR}/src/Bullet3OpenCL/libBullet3OpenCL_clew.a )
+
 
 FILE( MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/data" )
 

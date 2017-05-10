@@ -42,6 +42,8 @@
 #include "BulletSoftBody/btSoftBodyRigidBodyCollisionConfiguration.h"
 #include "BulletCollision/Gimpact/btGImpactCollisionAlgorithm.h"
 #include"../../ThirdPartyLibs/Wavefront/tiny_obj_loader.h"
+#include <dirent.h>
+#include <boost/algorithm/string/predicate.hpp>\
 
 #include "BulletUtils.hpp" // ERP/CFM setting utils
 
@@ -64,6 +66,12 @@ static btRigidBody* gMotorizedBox = NULL; // motorized hinge-box
 
 static btRigidBody *body = NULL;
 static btCollisionShape* body_shape = NULL;
+btCompoundShape* compound = NULL;
+btRigidBody *compoundBody = NULL;
+static bool show_body = true;
+static bool show_jacket = true;
+static bool show_cloth_path = false;
+
 static btSoftBodyWorldInfo softBodyWorldInfo;
 #define SCALE_FACTOR 20
 
@@ -242,9 +250,9 @@ struct TimeWarpExample: public CommonRigidBodyBase {
 	bool keyboardCallback(int key, int state); // keyboard callbacks
 
 	void resetCamera() { // reset the camera to its original position
-        float dist = SCALE_FACTOR * 1.6;
-		float pitch = 152;
-		float yaw = 35;
+        float dist = 42;//SCALE_FACTOR * 1.6;
+		float pitch = 63; //152;
+		float yaw = -5.8; //35;
 		float targetPos[3] = { 20, 25, 20 };
 		m_guiHelper->resetCamera(dist, pitch, yaw, targetPos[0], targetPos[1],
 			targetPos[2]);
@@ -671,111 +679,210 @@ void TimeWarpExample::initPhysics() {
 		m_dynamicsWorld->addConstraint(motorizedHinge);
 	}
 
+//    {
+//        // Create Rigid Human Body Mesh
+//        //load our obj mesh
+//
+//        const char *bodyFileName = "fision//3000_vertices//bodyMesh.obj"; //bodyMesh.obj "teddy.obj";//sphere8.obj";//sponza_closed.obj";//sphere8.obj";
+//        char relativeFileName[1024];
+//        char pathPrefix[1024];
+//        if (b3ResourcePath::findResourcePath(bodyFileName, relativeFileName, 1024)) {
+//            b3FileUtils::extractPath(relativeFileName, pathPrefix, 1024);
+//        }
+//        GLInstanceGraphicsShape *m_body;
+//        m_body = LoadMeshFromObj(relativeFileName, "");
+//        const GLInstanceVertex &v = m_body->m_vertices->at(0);
+//        int indexStride = 3*sizeof(int);
+//        btTriangleIndexVertexArray* indexVertexArrays = new btTriangleIndexVertexArray(m_body->m_numIndices/3,
+//                                                                                       &m_body->m_indices->at(0),
+//                                                                                       indexStride,
+//                                                                                       m_body->m_numvertices,(btScalar*) (&(v.xyzw[0])),sizeof(GLInstanceVertex));
+//
+//        body_shape = new btBvhTriangleMeshShape(indexVertexArrays,true);
+//
+//        float scaling[4] = {SCALE_FACTOR, SCALE_FACTOR, SCALE_FACTOR, 1};
+//        btVector3 localScaling(scaling[0], scaling[1], scaling[2]);
+//        body_shape->setLocalScaling(localScaling);
+//
+//        body_shape->setMargin(0.0);
+//
+//        btTransform startTransform;
+//        startTransform.setIdentity();
+//
+//        btScalar mass(0.0f);
+//
+//        bool isDynamic = (mass != 0.f);
+//        btVector3 localInertia(0, 0, 0);
+//        if (isDynamic)
+//            body_shape->calculateLocalInertia(mass, localInertia);
+//        float color[4] = {1, 1, 1, 1};
+//        float orn[4] = {0, 0, 0, 1};
+//        float pos[4] = {20, SCALE_FACTOR+4, 20, 0};
+//        btVector3 position(pos[0], pos[1], pos[2]);
+//        startTransform.setOrigin(position);
+//        body = createRigidBody(mass, startTransform, body_shape);
+//        body->setFriction( 0.8f );
+//        int shapeId = m_guiHelper->registerGraphicsShape(&m_body->m_vertices->at(0).xyzw[0],
+//                                                         m_body->m_numvertices,
+//                                                         &m_body->m_indices->at(0),
+//                                                         m_body->m_numIndices,
+//                                                         B3_GL_TRIANGLES, -1);
+//        body_shape->setUserIndex(shapeId);
+//        int renderInstance = m_guiHelper->registerGraphicsInstance(shapeId, pos, orn, color, scaling);
+//        body->setUserIndex(renderInstance);
+//    }
     {
-        // Create Rigid Human Body Mesh
-        //load our obj mesh
+        if (show_body) {
+            const char *bodyPartsFileName = "fision//3000_vertices//parts//";
+            char relativePartsFileName[1024];
+            char pathPartsPrefix[1024];
+            if (b3ResourcePath::findResourcePath(bodyPartsFileName, relativePartsFileName, 1024)) {
+                b3FileUtils::extractPath(relativePartsFileName, pathPartsPrefix, 1024);
+            }
+            compound = new btCompoundShape();
+            m_collisionShapes.push_back(compound);
 
-        const char *bodyFileName = "fision//3000_vertices//bodyMesh.obj"; //bodyMesh.obj "teddy.obj";//sphere8.obj";//sponza_closed.obj";//sphere8.obj";
-        char relativeFileName[1024];
-        char pathPrefix[1024];
-        if (b3ResourcePath::findResourcePath(bodyFileName, relativeFileName, 1024)) {
-            b3FileUtils::extractPath(relativeFileName, pathPrefix, 1024);
+            btTransform startTransform;
+            startTransform.setIdentity();
+            float pos[4] = {0, 0, 0, 0};
+            btVector3 position(pos[0], pos[1], pos[2]);
+            startTransform.setOrigin(position);
+
+            DIR *dir;
+            struct dirent *ent;
+            if ((dir = opendir(relativePartsFileName)) != NULL) {
+                /* print all the files and directories within directory */
+                while ((ent = readdir(dir)) != NULL) {
+                    if (boost::ends_with(ent->d_name, ".obj")) {
+                        char objFile[2000] = "";
+                        strcat(objFile, relativePartsFileName);
+                        printf("loading %s\n", strcat(objFile, ent->d_name));
+                        GLInstanceGraphicsShape *bodyPart = LoadMeshFromObj(objFile, "");
+                        const GLInstanceVertex &v = bodyPart->m_vertices->at(0);
+                        btConvexHullShape *bodyPart_shape = new btConvexHullShape((const btScalar *) (&(v.xyzw[0])),
+                                                                                  bodyPart->m_numvertices,
+                                                                                  sizeof(GLInstanceVertex));
+
+                        compound->addChildShape(startTransform, bodyPart_shape);
+                    }
+                }
+                closedir(dir);
+            } else {
+                perror("could not open directory");
+            }
+            startTransform.setIdentity();
+            btScalar mass(0.0f);
+            float scaling[4] = {SCALE_FACTOR, SCALE_FACTOR, SCALE_FACTOR,
+                                1}; // just for the first time  we set this scale
+            btVector3 localScaling(scaling[0], scaling[1], scaling[2]);
+            if (!compoundBody)
+                compound->setLocalScaling(localScaling);
+            compound->setMargin(0.25f);
+            float pos2[4] = {20, SCALE_FACTOR + 4, 20, 0};
+            btVector3 position2(pos2[0], pos2[1], pos2[2]);
+            startTransform.setOrigin(position2);
+            startTransform.setRotation(btQuaternion(-SIMD_PI, 0, 0));
+            compoundBody = new btRigidBody(mass, NULL, compound);
+            compoundBody->setWorldTransform(startTransform);
+            compoundBody->setCollisionFlags( compoundBody->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT );
+            compoundBody->setUserIndex( -1 );
+            compoundBody->setFriction(0.3f);
+            m_dynamicsWorld->addRigidBody( compoundBody );
         }
-        GLInstanceGraphicsShape *m_body;
-        m_body = LoadMeshFromObj(relativeFileName, "");
-        const GLInstanceVertex &v = m_body->m_vertices->at(0);
-        int indexStride = 3*sizeof(int);
-        btTriangleIndexVertexArray* indexVertexArrays = new btTriangleIndexVertexArray(m_body->m_numIndices/3,
-                                                                                       &m_body->m_indices->at(0),
-                                                                                       indexStride,
-                                                                                       m_body->m_numvertices,(btScalar*) (&(v.xyzw[0])),sizeof(GLInstanceVertex));
-
-        body_shape = new btBvhTriangleMeshShape(indexVertexArrays,true);
-
-        float scaling[4] = {SCALE_FACTOR, SCALE_FACTOR, SCALE_FACTOR, 1};
-        btVector3 localScaling(scaling[0], scaling[1], scaling[2]);
-        body_shape->setLocalScaling(localScaling);
-
-        body_shape->setMargin(0.0);
-
-        btTransform startTransform;
-        startTransform.setIdentity();
-
-        btScalar mass(0.0f);
-
-        bool isDynamic = (mass != 0.f);
-        btVector3 localInertia(0, 0, 0);
-        if (isDynamic)
-            body_shape->calculateLocalInertia(mass, localInertia);
-        float color[4] = {1, 1, 1, 1};
-        float orn[4] = {0, 0, 0, 1};
-        float pos[4] = {20, SCALE_FACTOR+4, 20, 0};
-        btVector3 position(pos[0], pos[1], pos[2]);
-        startTransform.setOrigin(position);
-        body = createRigidBody(mass, startTransform, body_shape);
-        body->setFriction( 0.8f );
-        int shapeId = m_guiHelper->registerGraphicsShape(&m_body->m_vertices->at(0).xyzw[0],
-                                                         m_body->m_numvertices,
-                                                         &m_body->m_indices->at(0),
-                                                         m_body->m_numIndices,
-                                                         B3_GL_TRIANGLES, -1);
-        body_shape->setUserIndex(shapeId);
-        int renderInstance = m_guiHelper->registerGraphicsInstance(shapeId, pos, orn, color, scaling);
-        body->setUserIndex(renderInstance);
     }
-
     {
-        // Create garments
-        const char *jacketFileName = "fision//3000_vertices//JacketMesh.obj";
-        char relativeFileName2[1024];
-        char pathPrefix2[1024];
-        if (b3ResourcePath::findResourcePath(jacketFileName, relativeFileName2, 1024)) {
-            b3FileUtils::extractPath(relativeFileName2, pathPrefix2, 1024);
+        if (show_jacket) {
+            // Create garments
+            const char *jacketFileName = "fision//3000_vertices//JacketMesh.obj";
+            char relativeFileName2[1024];
+            char pathPrefix2[1024];
+            if (b3ResourcePath::findResourcePath(jacketFileName, relativeFileName2, 1024)) {
+                b3FileUtils::extractPath(relativeFileName2, pathPrefix2, 1024);
+            }
+
+            std::vector<tinyobj::shape_t> shapes_j;
+            std::string err = tinyobj::LoadObj(shapes_j, relativeFileName2, pathPrefix2);
+            tinyobj::shape_t &objshape = shapes_j[0];
+
+            int indices[objshape.mesh.indices.size()];
+            for (int i = 0; i < objshape.mesh.indices.size(); i++)
+                indices[i] = (int) objshape.mesh.indices[i];
+            btScalar vertices[objshape.mesh.positions.size()];
+            for (int i = 0; i < objshape.mesh.positions.size(); i++)
+                vertices[i] = (btScalar) objshape.mesh.positions[i];
+            btSoftBody *garment = btSoftBodyHelpers::CreateFromTriMesh(softBodyWorldInfo, &vertices[0],
+                                                                       &indices[0],
+                                                                       (int) objshape.mesh.indices.size() / 3);
+            float scaling[4] = {SCALE_FACTOR, SCALE_FACTOR, SCALE_FACTOR, 1};
+            btVector3 localScaling(scaling[0], scaling[1], scaling[2]);
+            garment->scale(localScaling);
+
+            float margin = std::max(0.5, SCALE_FACTOR / 1500.0);
+            garment->getCollisionShape()->setMargin(margin);
+            btSoftBody::Material *pm = garment->appendMaterial();
+            pm->m_kLST = 0.1;
+//            pm->m_kAST = 0.0;
+//            pm->m_kVST = 0.0;
+            pm->m_flags -= btSoftBody::fMaterial::DebugDraw;
+//            garment->generateClusters(1024);
+            garment->generateBendingConstraints(2, pm);
+            garment->m_cfg.piterations = 10;
+//            garment->m_cfg.citerations = 5;
+//            garment->m_cfg.diterations = 5;
+//            garment->m_cfg.kDF = 0.0;
+//            garment->m_cfg.kMT = 0.0;
+//            garment->m_cfg.kDP = 0.0;
+            garment->randomizeConstraints();
+            garment->setTotalMass(100, true);
+            // Move to position of body
+            btTransform startTransform;
+            startTransform.setIdentity();
+            float pos[4] = {20, SCALE_FACTOR + 4, 20, 0};
+            btVector3 position(pos[0], pos[1], pos[2]);
+            startTransform.setOrigin(position);
+            garment->transform(startTransform);
+
+            btSoftBodyHelpers::ReoptimizeLinkOrder(garment);
+            getSoftDynamicsWorld()->addSoftBody(garment);
         }
+    }
+    {
+        if (show_cloth_path){
+            const btScalar s = 4; //size of cloth patch
+            const int numX = 80; //vertices on X axis
+            const int numY = 80; //vertices on Z axis
+            const int fixed= 0;
+            btSoftBody *cloth = btSoftBodyHelpers::CreatePatch(softBodyWorldInfo,
+                                                               btVector3(-s,SCALE_FACTOR+s+1,-s),
+                                                               btVector3(+s,SCALE_FACTOR+s+1,-s),
+                                                               btVector3(-s,SCALE_FACTOR+s+1,+s),
+                                                               btVector3(+s,SCALE_FACTOR+s+1,+s),
+                                                               numX,numY,
+                                                               fixed,true);
+            // This is thickness for cloth
+//            cloth->getCollisionShape()->setMargin(0.5f);
+//            cloth->generateClusters(100);
+//            cloth->generateBendingConstraints(2, cloth->appendMaterial());
+            cloth->setTotalMass(0.1);
+            cloth->m_cfg.citerations = 10;
+            cloth->m_cfg.diterations = 10;
+            cloth->m_cfg.piterations = 10;
+            getSoftDynamicsWorld()->addSoftBody(cloth);
 
-        std::vector<tinyobj::shape_t> shapes_j;
-        std:: string err = tinyobj::LoadObj(shapes_j, relativeFileName2, pathPrefix2);
-        tinyobj::shape_t& objshape = shapes_j[0];
+            // Add the capsule
+            btTransform startTransform;
+            startTransform.setIdentity();
+            startTransform.setOrigin(btVector3(0,SCALE_FACTOR+s+1-2,0));
 
-        int indices[objshape.mesh.indices.size()];
-        for (int i=0;i<objshape.mesh.indices.size();i++)
-            indices[i] = (int)objshape.mesh.indices[i];
-        btScalar vertices[objshape.mesh.positions.size()];
-        for (int i=0;i<objshape.mesh.positions.size();i++)
-            vertices[i] = (btScalar)objshape.mesh.positions[i];
-        btSoftBody *garment = btSoftBodyHelpers::CreateFromTriMesh(softBodyWorldInfo, &vertices[0],
-                                                                   &indices[0], (int)objshape.mesh.indices.size()/3);
-        float scaling[4] = {SCALE_FACTOR, SCALE_FACTOR, SCALE_FACTOR, 1};
-        btVector3 localScaling(scaling[0], scaling[1], scaling[2]);
-        garment->scale(localScaling);
+            btCollisionShape* capsuleShape= new btCapsuleShapeX(1,5);
+            capsuleShape->setMargin( 0.5 );
 
-        float margin = std::max(0.15, SCALE_FACTOR/1500.0);
-//        printf("margin: %f\n", margin);
-        garment->getCollisionShape()->setMargin(margin);
-        btSoftBody::Material*	pm=garment->appendMaterial();
-        pm->m_kLST				=	0;
-        pm->m_kAST              =   0.0;
-        pm->m_kVST              =   0.0;
-        pm->m_flags				-=	btSoftBody::fMaterial::DebugDraw;
-        garment->generateBendingConstraints(2,pm);
-        garment->m_cfg.piterations = 50;
-        garment->m_cfg.citerations = 10;
-        garment->m_cfg.diterations = 10;
-        garment->m_cfg.kDF			=	0.0;
-        garment->m_cfg.kMT          =   0.0;
-        garment->m_cfg.kDP          =  0.0;
-        garment->randomizeConstraints();
-        garment->setTotalMass(1,true);
-        // Move to position of body
-        btTransform startTransform;
-        startTransform.setIdentity();
-        float pos[4] = {20, SCALE_FACTOR+4, 20, 0};
-        btVector3 position(pos[0], pos[1], pos[2]);
-        startTransform.setOrigin(position);
-        garment->transform(startTransform);
+            //	capsule->setLocalScaling(btVector3(5,1,1));
+//	btRigidBody*		body=pdemo->createRigidBody(20,startTransform,capsuleShape);
+            btRigidBody*		body=createRigidBody(0,startTransform,capsuleShape);
+            body->setFriction( 0.8f );
 
-        btSoftBodyHelpers::ReoptimizeLinkOrder(garment);
-        getSoftDynamicsWorld()->addSoftBody(garment);
+        }
     }
 
 	m_guiHelper->autogenerateGraphicsObjects(m_dynamicsWorld);
@@ -1002,7 +1109,7 @@ void TimeWarpExample::createEmptyDynamicsWorld(){ // create an empty dynamics wo
 	///collision configuration contains default setup for memory, collision setup
 //	m_collisionConfiguration = new btDefaultCollisionConfiguration();
     m_collisionConfiguration = new btSoftBodyRigidBodyCollisionConfiguration();
-	//m_collisionConfiguration->setConvexConvexMultipointIterations();
+//	m_collisionConfiguration->setConvexConvexMultipointIterations();
 
 	///use the default collision dispatcher. For parallel processing you can use a diffent dispatcher (see Extras/BulletMultiThreaded)
 	m_dispatcher = new btCollisionDispatcher(m_collisionConfiguration);

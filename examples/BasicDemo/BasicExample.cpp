@@ -14,8 +14,9 @@ subject to the following restrictions:
 */
 
 
+#include <vector>
 #include "BasicExample.h"
-
+#include <algorithm>
 #include "btBulletDynamicsCommon.h"
 #define ARRAY_SIZE_Y 5
 #define ARRAY_SIZE_X 5
@@ -44,6 +45,8 @@ struct BasicExample : public CommonRigidBodyBase
 		float targetPos[3]={0,0,0};
 		m_guiHelper->resetCamera(dist,pitch,yaw,targetPos[0],targetPos[1],targetPos[2]);
 	}
+    void ClearPhysicsMetaData();
+    std::vector<btRigidBody*> rigidBodies;
 };
 
 void BasicExample::initPhysics()
@@ -112,7 +115,8 @@ void BasicExample::initPhysics()
 										btScalar(0.2*j)));
 
 			
-					createRigidBody(mass,startTransform,colShape);
+					btRigidBody* bd = createRigidBody(mass,startTransform,colShape);
+                    rigidBodies.push_back(bd);
 					
 
 				}
@@ -128,8 +132,46 @@ void BasicExample::initPhysics()
 
 void BasicExample::renderScene()
 {
-	CommonRigidBodyBase::renderScene();
-	
+    CommonRigidBodyBase::renderScene();
+    for (int i=0;i<5;i++) {
+//        btCollisionShape* shape = rigidBodies[i]->getCollisionShape();
+//        delete shape;
+//        if (rigidBodies[i]->getMotionState())
+//        {
+//            delete rigidBodies[i]->getMotionState();
+//        }
+        m_dynamicsWorld->removeRigidBody(rigidBodies[i]);
+        m_dynamicsWorld->removeCollisionObject(rigidBodies[i]);
+        rigidBodies.erase(std::remove(rigidBodies.begin(), rigidBodies.end(), rigidBodies[i]), rigidBodies.end());
+//        m_broadphase->getOverlappingPairCache()->cleanProxyFromPairs(rigidBodies[i]->getBroadphaseHandle(),m_dynamicsWorld->getDispatcher());
+//        delete rigidBodies[i];
+    }
+//    ClearPhysicsMetaData();
+}
+
+void BasicExample::ClearPhysicsMetaData()
+{
+    // Clean the broadphase of AABB data
+    btOverlappingPairCache* Pairs = m_broadphase->getOverlappingPairCache();
+    int NumPairs = Pairs->getNumOverlappingPairs();
+    btBroadphasePairArray PairArray = Pairs->getOverlappingPairArray();
+    for( int X = 0 ; X < NumPairs ; X++ )
+    {
+        btBroadphasePair& CurrPair = PairArray.at(X);
+        Pairs->cleanOverlappingPair(CurrPair,m_dispatcher);
+       // Pairs->removeOverlappingPair(CurrPair.m_pProxy0,CurrPair.m_pProxy1,m_dispatcher);
+    }
+
+    // Clean the dispatcher(narrowphase) of shape data
+    int numManifolds = m_dynamicsWorld->getDispatcher()->getNumManifolds();
+    for ( int i = 0 ; i < numManifolds ; i++ )
+    {
+        m_dispatcher->releaseManifold(m_dispatcher->getManifoldByIndexInternal(i));
+    }
+
+    m_broadphase->resetPool(m_dispatcher);
+    m_solver->reset();
+    m_dynamicsWorld->stepSimulation(1.f/60.f,1,1.f/60.f);
 }
 
 

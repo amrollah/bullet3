@@ -612,7 +612,7 @@ static void	Init_CapsuleCollision(SoftDemo* pdemo)
 		//TRACEDEMO
 	const btScalar	s=4;
 	const btScalar	h=6;
-	const int		r=20;
+	const int		r=100;
 
 	btTransform startTransform;
 	startTransform.setIdentity();
