@@ -44,7 +44,7 @@ subject to the following restrictions:
 #define ARRAY_SIZE_Y 5
 #define ARRAY_SIZE_X 5
 #define ARRAY_SIZE_Z 5
-#define SCALE_FACTOR 20
+#define SCALE_FACTOR 1
 #define FIXED_SUBSTEP 1./30.
 #define BT_OVERRIDE
 
@@ -52,7 +52,7 @@ subject to the following restrictions:
 #include "LinearMath/btAlignedObjectArray.h"
 
 #include "../CommonInterfaces/CommonRigidBodyBase.h"
-
+#include <fstream>
 
 struct GarmentFit : public CommonRigidBodyBase {
     int m_options;
@@ -77,7 +77,9 @@ struct GarmentFit : public CommonRigidBodyBase {
         if (b3ResourcePath::findResourcePath(bodyPartsFileName, relativePartsFileName, 1024)) {
             b3FileUtils::extractPath(relativePartsFileName, pathPartsPrefix, 1024);
         }
-        LoadCompoundBody(relativePartsFileName);
+//        LoadCompoundBody(relativePartsFileName);
+        const char *sphereBodyFile = "/home/amrollah/bullet3/data/fision/sphereBody/sphereBody1.txt";
+        LoadCompoundSphereBody(sphereBodyFile);
         iteration = 0;
         expansionFactor = 0.01;
 
@@ -131,6 +133,7 @@ struct GarmentFit : public CommonRigidBodyBase {
     void createSoftBody(tinyobj::shape_t& objshape, bool anchorToBody = false);
     void LoadRigidBody(const char* relativeFileName, const char* meshFileName);
     void LoadCompoundBody(const char* dirPath);
+    void LoadCompoundSphereBody(const char* dirPath);
     void createCompoundHumanBody();
     void findFixNodes(btScalar *vertices, std::vector<int> &fixNodes, int size);
     void expandBody(float expansionFactor, btRigidBody* humanBody);
@@ -227,6 +230,7 @@ void GarmentFit::initPhysics() {
 //        b3FileUtils::extractPath(relativePartsFileName, pathPartsPrefix, 1024);
 //    }
 //    LoadCompoundBody(relativePartsFileName);
+
     createCompoundHumanBody();
     // create garments
     {
@@ -245,8 +249,9 @@ void GarmentFit::initPhysics() {
 //        std::vector<tinyobj::shape_t> shapes_j;
 //        std:: string err = tinyobj::LoadObj(shapes_j, relativeFileName2, pathPrefix2);
 //        tinyobj::shape_t& jacket = shapes_j[0];
-        if (!garment)
-            createSoftBody(jacket);
+
+//        if (!garment)
+//            createSoftBody(jacket);
 
 //        const char *trousersFileName = "fision//3000_vertices//TrousersMesh.obj";
 //        char relativeFileName3[1024];
@@ -323,6 +328,38 @@ void GarmentFit::LoadCompoundBody(const char* dirPath){
     }
 
 }
+
+void GarmentFit::LoadCompoundSphereBody(const char* filePath){
+    compound = new btCompoundShape();
+    m_collisionShapes.push_back (compound);
+
+//    btTransform startTransform;
+//    startTransform.setIdentity();
+//    float pos[4] = {0, 0, 0, 0};
+//    btVector3 position(pos[0], pos[1], pos[2]);
+//    startTransform.setOrigin(position);
+
+    std::ifstream file(filePath);
+    std::string line;
+    char ln[256];
+    std::string delimiter = " ";
+    while (file.getline(ln,256))
+    {
+        float center[3];
+        float radius;
+        std::sscanf(ln,"%f %f %f,%f", &center[0], &center[1], &center[2],&radius);
+        btSphereShape* sphShape = new btSphereShape(radius);
+        btTransform startTransform;
+        startTransform.setIdentity();
+
+        startTransform.setOrigin(
+                btVector3(center[0], center[1], center[2])); // position of sphere
+
+        compound->addChildShape(startTransform, sphShape);
+    }
+    file.close();
+}
+
 
 void GarmentFit::createCompoundHumanBody(){
     btTransform startTransform;
@@ -558,14 +595,14 @@ void GarmentFit::renderScene() {
             );
         }
     }
-    if (iteration>=0 &&  iteration%20==0) {
-        if (expansionFactor < 1) {
-            expansionFactor = std::min(expansionFactor + 0.1, 1.0);
-            printf("iteration:: %d \n", iteration);
-            expandBody(expansionFactor, compoundBody);
-            m_guiHelper->autogenerateGraphicsObjects(m_dynamicsWorld);
-        }
-    }
+//    if (iteration>=0 &&  iteration%20==0) {
+//        if (expansionFactor < 1) {
+//            expansionFactor = std::min(expansionFactor + 0.1, 1.0);
+//            printf("iteration:: %d \n", iteration);
+//            expandBody(expansionFactor, compoundBody);
+//            m_guiHelper->autogenerateGraphicsObjects(m_dynamicsWorld);
+//        }
+//    }
     iteration++;
 }
 
